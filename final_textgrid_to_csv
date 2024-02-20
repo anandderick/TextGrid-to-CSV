@@ -1,0 +1,144 @@
+import textgrid
+import csv
+import numpy as np
+import pandas as pd
+
+def load_textgrid(file_path):
+    tg = textgrid.TextGrid.fromFile(file_path)
+    print(f"Type of TextGrid object: {type(tg)}")
+    for tier in tg.tiers:
+        print("Tier name:", tier.name)
+        print("Loaded TextGrid file")
+    return tg
+
+def extract_phones(tg):
+    for tier in tg.tiers:
+        if tier.name == "phones":
+            print([interval.minTime, interval.maxTime, interval.mark] for interval in tier)
+            return [[interval.minTime, interval.maxTime, interval.mark] for interval in tier]
+    return []
+
+def export_to_csv(data, csv_file_path, header=None):
+    with open(csv_file_path, 'w', newline='', encoding='utf-8') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerow(['Start Time', 'End Time', 'ARPABet'])
+        csvwriter.writerows(data)
+    print(f"Data successfully exported to {csv_file_path}")
+
+def load_and_modify_csv(file_path, modified_file_path):
+    df = pd.read_csv(file_path)
+    df['ARPABet'] = df['ARPABet'].str.replace(r'\d', '', regex=True)
+    df.to_csv(modified_file_path, index=False)
+    print(f"Data successfully modified and exported to {modified_file_path}")
+
+    
+def list_unique_phones(csv_file_path, phone_column='ARPABet'):
+    df = pd.read_csv(csv_file_path)
+    unique_phones = df[phone_column].unique()
+    return list(unique_phones)
+
+def custom_round(x):
+    if x - int(x) < 0.5:
+        return int(x)
+    else:
+        return int(x) + 1
+    
+def hz_converter(input_file, output_file, multiplier):
+    df = pd.read_csv(input_file)
+
+    df['Start Time'] = df['Start Time'] * multiplier
+    df['End Time'] = df['End Time'] * multiplier
+
+    df['Start Time'] = df['Start Time'].apply(lambda x: int(x) if x - int(x) < 0.5 else int(x) + 1)
+    df['End Time'] = df['End Time'].apply(lambda x: int(x) if x - int(x) < 0.5 else int(x) + 1)
+
+    results = []
+    min_start_time = int(df['Start Time'].min())
+    max_end_time = int(df['End Time'].max())
+
+    for num in range(min_start_time, max_end_time + 1):
+        interval = df[(df['Start Time'] <= num) & (df['End Time'] > num)]
+        if not interval.empty:
+            results.append((num, interval.iloc[0]['ARPABet']))
+        else:
+            results.append((num, np.nan))
+
+    result_df = pd.DataFrame(results, columns=['Hertz', 'ARPABet'])
+    result_df.to_csv(output_file, index=False)
+    #print(result_df)
+
+def summary(input_file_path, summary_output_file_path):
+    df = pd.read_csv(input_file_path)
+
+    arpabet_counts = df['ARPABet'].value_counts()
+
+    summary_df = pd.DataFrame({'ARPABet': arpabet_counts.index, 'Count': arpabet_counts.values})
+
+    summary_df.to_csv(summary_output_file_path, index=False)
+
+    print(f"Summary data successfully exported to {summary_output_file_path}")
+
+
+def convert_to_pivot(input_file_path, pivot_column, group_by_column, output_file_path):
+    df = pd.read_csv(input_file_path)
+
+    pivot_df = pd.get_dummies(df, columns=[pivot_column])
+    pivot_df = pivot_df.groupby(group_by_column).sum()
+    pivot_df.reset_index(inplace=True)
+    pivot_df.to_csv(output_file_path, index=False)
+    print("Conversion complete. Data exported to", output_file_path)
+
+
+def clean_matrix(input_file_path, output_file_path, prefix):
+    df = pd.read_csv(input_file_path)
+
+    df.columns = [col.replace(prefix, '') if col.startswith(prefix) else col for col in df.columns]
+
+    df.to_csv(output_file_path, index=False)
+
+    print("Column renaming and export complete. Data exported to", output_file_path)
+
+
+
+
+
+main_file = '/Users/anandderick/College/CORINA LAB RESEARCH /dataPrep/'
+
+main_textgrid_file = '/Users/anandderick/College/CORINA LAB RESEARCH /dataPrep/speech1_chunk0.TextGrid'
+output1_file_path = '/Users/anandderick/College/CORINA LAB RESEARCH /dataPrep/phones.csv'
+output2_file_path = '/Users/anandderick/College/CORINA LAB RESEARCH /dataPrep/cleanedphones.csv'
+output3_file_path = '/Users/anandderick/College/CORINA LAB RESEARCH /dataPrep/hz_phones.csv'
+
+summary_file_path = '/Users/anandderick/College/CORINA LAB RESEARCH /dataPrep/new_summary.csv'
+
+
+
+output4_file_path = '/Users/anandderick/College/CORINA LAB RESEARCH /dataPrep/matrix.csv'
+output5_file_path = '/Users/anandderick/College/CORINA LAB RESEARCH /dataPrep/final_matrix.csv'
+
+
+
+
+
+tg = load_textgrid(main_textgrid_file)
+data = extract_phones(tg)
+multiplier = 128
+pivot_column = 'ARPABet'
+group_by_column = 'Hertz'
+prefix = 'ARPABet_'
+
+#testcase1 = '/Users/anandderick/College/CORINA LAB RESEARCH /test_case_1.csv'
+
+
+
+export_to_csv(data,output1_file_path, header=None)
+load_and_modify_csv(output1_file_path,output2_file_path)
+hz_converter(output2_file_path, output3_file_path,multiplier)
+
+summary(output3_file_path, summary_file_path)
+
+convert_to_pivot(output3_file_path, pivot_column, group_by_column, output4_file_path)
+clean_matrix(output4_file_path, output5_file_path, prefix)
+
+
+
